@@ -5,8 +5,8 @@ from yacs.config import CfgNode as CN
 _C = CN()
 
 _C.LOG_DIR = '/workspace/MTL-Perception-Research/YOLOP/runs/'
-_C.GPUS = (0,)     
-_C.WORKERS = 1
+_C.GPUS = (0,1,2,3)     
+_C.WORKERS = 8
 _C.PIN_MEMORY = False
 _C.PRINT_FREQ = 20
 _C.AUTO_RESUME =False       # Resume from the last training interrupt
@@ -93,7 +93,7 @@ _C.TRAIN.BEGIN_EPOCH = 0
 _C.TRAIN.END_EPOCH = 240
 
 _C.TRAIN.VAL_FREQ = 1
-_C.TRAIN.BATCH_SIZE_PER_GPU =1
+_C.TRAIN.BATCH_SIZE_PER_GPU =4
 _C.TRAIN.SHUFFLE = True
 
 _C.TRAIN.IOU_THRESHOLD = 0.2
