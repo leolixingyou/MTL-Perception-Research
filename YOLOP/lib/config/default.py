@@ -4,7 +4,7 @@ from yacs.config import CfgNode as CN
 
 _C = CN()
 
-_C.LOG_DIR = '/workspace/YOLOP/runs/'
+_C.LOG_DIR = '/workspace/MTL-Perception-Research/YOLOP/runs/'
 _C.GPUS = (0,)     
 _C.WORKERS = 1
 _C.PIN_MEMORY = False
