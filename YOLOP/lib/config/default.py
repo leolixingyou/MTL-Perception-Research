@@ -155,3 +155,20 @@ def update_config(cfg, args):
     #     )
 
     cfg.freeze()
+
+
+from colorama import init, Fore
+import pyfiglet
+
+def print_3d_title():
+    # 3D Text
+    title = pyfiglet.figlet_format("XINGYOU", font='3-d')
+    border = "=" * 70 
+    print(f"{Fore.BLACK }")
+    print(border)
+    print(title)
+    print(border)
+    print(f"{Fore.RESET}")
+
+if __name__ == "__main__":
+    print_3d_title()
