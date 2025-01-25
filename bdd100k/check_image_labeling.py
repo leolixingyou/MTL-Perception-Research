@@ -4,7 +4,6 @@ import copy
 import json
 import numpy as np
 from tqdm import tqdm
-import pathlib as Path
 
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 print(ROOT_PATH)
@@ -65,11 +64,11 @@ def load_and_visualize(img_path, det_path, lane_path, drivable_path, output_path
 def main():
     splits = ['train', 'val']
     for split in splits:
-        img_dir = f'{ROOT_PATH}/images/{split}'
-        det_dir = f'{ROOT_PATH}/yolop_train/bdd_det/{split}'
-        lane_dir = f'{ROOT_PATH}/yolop_train/bdd_lane_gt/{split}'
-        drivable_dir = f'{ROOT_PATH}/yolop_train/bdd_seg_gt/{split}'
-        output_dir = f'{ROOT_PATH}/output/'
+        img_dir = f'{ROOT_PATH}/labels/det_20/sample_dataset/images/{split}'
+        det_dir = f'{ROOT_PATH}/labels/det_20/sample_dataset/det/{split}'
+        lane_dir = f'{ROOT_PATH}/labels/det_20/sample_dataset/lane/{split}'
+        drivable_dir = f'{ROOT_PATH}/labels/det_20/sample_dataset/drivable/{split}'
+        output_dir = f'{ROOT_PATH}/sample_dataset_vis/'
 
         os.makedirs(output_dir, exist_ok=True)
 
