@@ -12,7 +12,9 @@ inference/
 *.tar
 *.tar.gz
 runs/
-bdd100k/
+bdd100k/**/*.jpg
+bdd100k/**/*.png
+bdd100k/**/*.json
 darknet-onnx/
 HybridNets/
 YOLOPv2/
