@@ -22,5 +22,5 @@ YOLOPv3/
 YOLOPX/
 yolov3_custom/
 YOLOv8-multi-task/
-
+.cache/
 

@@ -5,6 +5,7 @@ from yacs.config import CfgNode as CN
 _C = CN()
 
 _C.LOG_DIR = '/workspace/YOLOP/runs/'
+_C.CACHE_DIR = '/workspace/YOLOP/'
 _C.GPUS = (0,)     
 _C.WORKERS = 1
 _C.PIN_MEMORY = False
@@ -90,7 +91,7 @@ _C.TRAIN.GAMMA1 = 0.99
 _C.TRAIN.GAMMA2 = 0.0
 
 _C.TRAIN.BEGIN_EPOCH = 0
-_C.TRAIN.END_EPOCH = 240
+_C.TRAIN.END_EPOCH = 1
 
 _C.TRAIN.VAL_FREQ = 1
 _C.TRAIN.BATCH_SIZE_PER_GPU =1

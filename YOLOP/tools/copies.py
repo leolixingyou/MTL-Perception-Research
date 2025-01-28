@@ -793,6 +793,7 @@ def get_optimizer(cfg, model):
 
 from torch.utils.data import DataLoader
 from prefetch_generator import BackgroundGenerator
+
 class DataLoaderX(DataLoader):
     """prefetch dataloader"""
     def __iter__(self):
