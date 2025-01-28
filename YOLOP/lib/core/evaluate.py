@@ -142,6 +142,7 @@ class ConfusionMatrix:
         n = matches.shape[0] > 0
         m0, m1, _ = matches.transpose().astype(np.int16)
         for i, gc in enumerate(gt_classes):
+            
             j = m0 == i
             if n and sum(j) == 1:
                 self.matrix[gc, detection_classes[m1[j]]] += 1  # correct

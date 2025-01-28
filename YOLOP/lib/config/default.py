@@ -10,11 +10,11 @@ _C.GPUS = (0,)
 _C.WORKERS = 1
 _C.PIN_MEMORY = False
 _C.PRINT_FREQ = 20
-_C.AUTO_RESUME =True       # Resume from the last training interrupt
+_C.AUTO_RESUME =False       # Resume from the last training interrupt
 # _C.AUTO_RESUME =False       # Resume from the last training interrupt
 _C.NEED_AUTOANCHOR = False      # Re-select the prior anchor(k-means)    When training from scratch (epoch=0), set it to be ture!
 _C.DEBUG = False
-_C.num_seg_class = 8
+_C.num_seg_class = 3  # 3 is RGB image for seg training, otherwise is Gray image for seg training
 
 # Cudnn related params
 _C.CUDNN = CN()
@@ -52,10 +52,15 @@ _C.LOSS.LL_IOU_GAIN = 0.2 # lane line iou loss gain
 
 # DATASET related params
 _C.DATASET = CN(new_allowed=True)
-_C.DATASET.DATAROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/images/'       # the path of images folder
-_C.DATASET.LABELROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/det'      # the path of det_annotations folder
-_C.DATASET.MASKROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/drivable'                # the path of da_seg_annotations folder
-_C.DATASET.LANEROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/lane'               # the path of ll_seg_annotations folder
+# _C.DATASET.DATAROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/images/'       # the path of images folder
+# _C.DATASET.LABELROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/det'      # the path of det_annotations folder
+# _C.DATASET.MASKROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/drivable'                # the path of da_seg_annotations folder
+# _C.DATASET.LANEROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/lane'               # the path of ll_seg_annotations folder
+
+_C.DATASET.DATAROOT = '/workspace/bdd100k/labels/det_20/resampled/images/'       # the path of images folder
+_C.DATASET.LABELROOT = '/workspace/bdd100k/labels/det_20/resampled/det'      # the path of det_annotations folder
+_C.DATASET.MASKROOT = '/workspace/bdd100k/labels/det_20/resampled/drivable'                # the path of da_seg_annotations folder
+_C.DATASET.LANEROOT = '/workspace/bdd100k/labels/det_20/resampled/lane'               # the path of ll_seg_annotations folder
 _C.DATASET.DATASET = 'BddDataset'
 _C.DATASET.TRAIN_SET = 'train'
 _C.DATASET.TEST_SET = 'val'
@@ -95,7 +100,7 @@ _C.TRAIN.BEGIN_EPOCH = 0
 _C.TRAIN.END_EPOCH = 300
 
 _C.TRAIN.VAL_FREQ = 1
-_C.TRAIN.BATCH_SIZE_PER_GPU =1
+_C.TRAIN.BATCH_SIZE_PER_GPU = 24
 _C.TRAIN.SHUFFLE = True
 
 _C.TRAIN.IOU_THRESHOLD = 0.2

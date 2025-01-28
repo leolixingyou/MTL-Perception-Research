@@ -8,7 +8,7 @@ import torchvision.transforms as transforms
 from pathlib import Path
 from PIL import Image
 from torch.utils.data import Dataset
-from ..utils import letterbox, augment_hsv, random_perspective, xyxy2xywh, cutout
+from ..utils import letterbox, augment_hsv, random_perspective, xyxy2xywh, cutout, show_seg_result
 
 
 class AutoDriveDataset(Dataset):
@@ -101,9 +101,10 @@ class AutoDriveDataset(Dataset):
         # seg_label = cv2.imread(data["mask"], 0)
         if self.cfg.num_seg_class == 3:
             seg_label = cv2.imread(data["mask"])
+            lane_label = cv2.imread(data["lane"])
         else:
             seg_label = cv2.imread(data["mask"], 0)
-        lane_label = cv2.imread(data["lane"], 0)
+            lane_label = cv2.imread(data["lane"], 0)
         #print(lane_label.shape)
         # print(seg_label.shape)
         # print(lane_label.shape)
@@ -201,11 +202,15 @@ class AutoDriveDataset(Dataset):
             _,seg0 = cv2.threshold(seg_label[:,:,0],128,255,cv2.THRESH_BINARY)
             _,seg1 = cv2.threshold(seg_label[:,:,1],1,255,cv2.THRESH_BINARY)
             _,seg2 = cv2.threshold(seg_label[:,:,2],1,255,cv2.THRESH_BINARY)
+            lane_masks = []
+            for i in range(8):  # 对8个类别分别处理
+                _, lane_mask = cv2.threshold(lane_label, i, 255, cv2.THRESH_BINARY) # 提取第i类
+                lane_masks.append(self.Tensor(lane_mask))
         else:
             _,seg1 = cv2.threshold(seg_label,1,255,cv2.THRESH_BINARY)
             _,seg2 = cv2.threshold(seg_label,1,255,cv2.THRESH_BINARY_INV)
-        _,lane1 = cv2.threshold(lane_label,1,255,cv2.THRESH_BINARY)
-        _,lane2 = cv2.threshold(lane_label,1,255,cv2.THRESH_BINARY_INV)
+            _,lane1 = cv2.threshold(lane_label,1,255,cv2.THRESH_BINARY)
+            _,lane2 = cv2.threshold(lane_label,1,255,cv2.THRESH_BINARY_INV)
 #        _,seg2 = cv2.threshold(seg_label[:,:,2],1,255,cv2.THRESH_BINARY)
         # # seg1[cutout_mask] = 0
         # # seg2[cutout_mask] = 0
@@ -214,22 +219,25 @@ class AutoDriveDataset(Dataset):
         # seg0 = self.Tensor(seg0)
         if self.cfg.num_seg_class == 3:
             seg0 = self.Tensor(seg0)
+        else:
+            lane1 = self.Tensor(lane1)
+            lane2 = self.Tensor(lane2)
         seg1 = self.Tensor(seg1)
         seg2 = self.Tensor(seg2)
         # seg1 = self.Tensor(seg1)
         # seg2 = self.Tensor(seg2)
-        lane1 = self.Tensor(lane1)
-        lane2 = self.Tensor(lane2)
+
 
         # seg_label = torch.stack((seg2[0], seg1[0]),0)
         if self.cfg.num_seg_class == 3:
             seg_label = torch.stack((seg0[0],seg1[0],seg2[0]),0)
+            lane_label = torch.stack([mask[0] for mask in lane_masks], 0)
         else:
             seg_label = torch.stack((seg2[0], seg1[0]),0)
+            lane_label = torch.stack((lane2[0], lane1[0]),0)
             
-        lane_label = torch.stack((lane2[0], lane1[0]),0)
-        # _, gt_mask = torch.max(seg_label, 0)
-        # _ = show_seg_result(img, gt_mask, idx, 0, save_dir='debug', is_gt=True)
+        _, gt_mask = torch.max(seg_label, 0)
+        _ = show_seg_result(img, gt_mask, idx, 0, save_dir='debug', is_gt=True)
         
 
         target = [labels_out, seg_label, lane_label]

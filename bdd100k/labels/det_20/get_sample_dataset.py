@@ -54,13 +54,13 @@ source_dirs = {
 }
 
 dest_dirs = {
-   'images': f'{ROOT_PATH}/sample_dataset/images',
-   'drivable': f'{ROOT_PATH}/sample_dataset/drivable',
-   'lane': f'{ROOT_PATH}/sample_dataset/lane',
-   'det': f'{ROOT_PATH}/sample_dataset/det'
+   'images': f'{ROOT_PATH}/resampled/images',
+   'drivable': f'{ROOT_PATH}/resampled/drivable',
+   'lane': f'{ROOT_PATH}/resampled/lane',
+   'det': f'{ROOT_PATH}/resampled/det'
 }
 
 
 
 
-organize_files(f'{ROOT_PATH}/output', source_dirs, dest_dirs)
+organize_files(f'{ROOT_PATH}/resampled_detect', source_dirs, dest_dirs)

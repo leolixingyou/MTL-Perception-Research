@@ -5,8 +5,8 @@ from .AutoDriveDataset import AutoDriveDataset
 from .convert import convert, id_dict, id_dict_single
 from tqdm import tqdm
 
-# single_cls = False       # detect others
-single_cls = True       # just detect vehicle
+single_cls = False       # detect others
+# single_cls = True       # just detect vehicle
 
 class BddDataset(AutoDriveDataset):
     def __init__(self, cfg, is_train, inputsize, transform=None):

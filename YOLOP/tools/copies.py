@@ -229,7 +229,8 @@ YOLOP = [
 [ -1, Conv, [256, 256, 3, 2]],      #21
 [ [-1, 10], Concat, [1]],   #22
 [ -1, BottleneckCSP, [512, 512, 1, False]],     #23
-[ [17, 20, 23], Detect,  [1, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]], #Detection head 24
+# [ [17, 20, 23], Detect,  [1, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]], #Detection head 24 only for vehicle
+[ [17, 20, 23], Detect,  [11, [[3,9,5,11,4,20], [7,18,6,39,12,31], [19,50,38,81,68,157]], [128, 256, 512]]], #Detection head 24 for bdd100k
 
 [ 16, Conv, [256, 128, 3, 1]],   #25
 [ -1, Upsample, [None, 2, 'nearest']],  #26
@@ -239,7 +240,8 @@ YOLOP = [
 [ -1, Conv, [32, 16, 3, 1]],    #30
 [ -1, BottleneckCSP, [16, 8, 1, False]],    #31
 [ -1, Upsample, [None, 2, 'nearest']],  #32
-[ -1, Conv, [8, 2, 3, 1]], #33 Driving area segmentation head
+# [ -1, Conv, [8, 2, 3, 1]], #33 Driving area segmentation head for 2 class
+[ -1, Conv, [8, 3, 3, 1]], #33 Driving area segmentation head for 3 class
 
 [ 16, Conv, [256, 128, 3, 1]],   #34
 [ -1, Upsample, [None, 2, 'nearest']],  #35
@@ -249,7 +251,8 @@ YOLOP = [
 [ -1, Conv, [32, 16, 3, 1]],    #39
 [ -1, BottleneckCSP, [16, 8, 1, False]],    #40
 [ -1, Upsample, [None, 2, 'nearest']],  #41
-[ -1, Conv, [8, 2, 3, 1]] #42 Lane line segmentation head
+# [ -1, Conv, [8, 2, 3, 1]] #42 Lane line segmentation head for 2 class
+[ -1, Conv, [8, 8, 3, 1]] #42 Lane line segmentation head for 8 class
 ]
 
 def check_anchor_order(m):
@@ -278,7 +281,8 @@ class MCnet(nn.Module):
     def __init__(self, block_cfg, **kwargs):
         super(MCnet, self).__init__()
         layers, save= [], []
-        self.nc = 1
+        # self.nc = 1 # for detect vehicle
+        self.nc = 11 # for detect bdd100k
         self.detector_index = -1
         self.det_out_idx = block_cfg[0][0]
         self.seg_out_idx = block_cfg[0][1:]
@@ -569,7 +573,8 @@ class MultiHeadLoss(nn.Module):
         lane_line_seg_targets = targets[2].view(-1)
         lseg_ll = BCEseg(lane_line_seg_predicts, lane_line_seg_targets)
 
-        metric = SegmentationMetric(2)
+        # metric = SegmentationMetric(2) # for previous
+        metric = SegmentationMetric(8) # for bdd100k
         nb, _, height, width = targets[1].shape
         pad_w, pad_h = shapes[0][1][1]
         pad_w = int(pad_w)
@@ -864,7 +869,8 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     save_hybrid=False
     log_imgs,wandb = min(16,100), None
 
-    nc = 1
+    # nc = 1 # for previous
+    nc = 11 # for bdd100k
     iouv = torch.linspace(0.5,0.95,10).to(device)     #iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
@@ -877,7 +883,8 @@ def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir
     seen =  0 
     confusion_matrix = ConfusionMatrix(nc=model.nc) #detector confusion matrix
     da_metric = SegmentationMetric(config.num_seg_class) #segment confusion matrix    
-    ll_metric = SegmentationMetric(2) #segment confusion matrix
+    # ll_metric = SegmentationMetric(2) #segment confusion matrix previous
+    ll_metric = SegmentationMetric(8) #segment confusion matrix for bdd100k
 
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
@@ -1278,7 +1285,8 @@ def main():
         
     # assign model params
     model.gr = 1.0
-    model.nc = 1
+    model.nc = 1 # for previous
+    model.nc = 11 # for bdd100k
     # print('bulid model finished')
 
     print("begin to load data")
@@ -1333,7 +1341,7 @@ def main():
     logger.info("anchors loaded successfully")
     det = model.module.model[model.module.detector_index] if is_parallel(model) \
         else model.model[model.detector_index]
-    logger.info(str(det.anchors))
+    # logger.info(str(det.anchors))
 
     # training
     num_warmup = max(round(cfg.TRAIN.WARMUP_EPOCHS * num_batch), 1000)

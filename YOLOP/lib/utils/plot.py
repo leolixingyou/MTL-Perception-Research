@@ -43,8 +43,8 @@ def show_seg_result(img, result, index, epoch, save_dir=None, is_ll=False,palett
     else:
         color_area = np.zeros((result[0].shape[0], result[0].shape[1], 3), dtype=np.uint8)
         
-        # for label, color in enumerate(palette):
-        #     color_area[result[0] == label, :] = color
+        for label, color in enumerate(palette):
+            color_area[result[0] == label, :] = color
 
         color_area[result[0] == 1] = [0, 255, 0]
         color_area[result[1] ==1] = [255, 0, 0]
@@ -55,7 +55,7 @@ def show_seg_result(img, result, index, epoch, save_dir=None, is_ll=False,palett
     # print(color_seg.shape)
     color_mask = np.mean(color_seg, 2)
     img[color_mask != 0] = img[color_mask != 0] * 0.5 + color_seg[color_mask != 0] * 0.5
-    # img = img * 0.5 + color_seg * 0.5
+    img = img * 0.5 + color_seg * 0.5
     img = img.astype(np.uint8)
     img = cv2.resize(img, (1280,720), interpolation=cv2.INTER_LINEAR)
 
