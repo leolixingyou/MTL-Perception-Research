@@ -5,6 +5,7 @@ from .AutoDriveDataset import AutoDriveDataset
 from .convert import convert, id_dict, id_dict_single
 from tqdm import tqdm
 
+# single_cls = False       # detect others
 single_cls = True       # just detect vehicle
 
 class BddDataset(AutoDriveDataset):

@@ -11,16 +11,23 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-import torch.distributed as dist
-import torchvision.transforms as transforms
+from torch.nn import Upsample
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+
 from torch.cuda import amp
+import torch.optim as optim
+from prefetch_generator import BackgroundGenerator
+import torchvision.transforms as transforms
 from tensorboardX import SummaryWriter
 
 import lib.dataset as dataset
 from lib.config import cfg, update_config, print_3d_title
 from lib.utils.utils import create_logger, select_device
 from lib.core.function import train
-
+from lib.core.evaluate import ConfusionMatrix,SegmentationMetric
+from lib.core.general import non_max_suppression,check_img_size,scale_coords,xyxy2xywh,xywh2xyxy,box_iou,coco80_to_coco91_class,ap_per_class
+from lib.utils import plot_one_box,show_seg_result
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train Multitask network')
@@ -40,7 +47,7 @@ def parse_args():
     parser.add_argument('--prevModelDir',
                         help='prev Model directory',
                         type=str,
-                        default='')
+                        default='/workspace/YOLOP/weights/End-to-end.pth')
 
     parser.add_argument('--sync-bn', action='store_true', help='use SyncBatchNorm, only available in DDP mode')
     parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
@@ -50,7 +57,6 @@ def parse_args():
 
     return args
 
-import torch.nn.functional as F
 
 # Network functions
 def autopad(k, p=None):  # kernel, padding
@@ -128,7 +134,6 @@ class Conv(nn.Module):
     def fuseforward(self, x):
         return self.act(self.conv(x))
 
-
 class Bottleneck(nn.Module):
     # Standard bottleneck
     def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, shortcut, groups, expansion
@@ -158,7 +163,6 @@ class BottleneckCSP(nn.Module):
         y1 = self.cv3(self.m(self.cv1(x)))
         y2 = self.cv2(x)
         return self.cv4(self.act(self.bn(torch.cat((y1, y2), dim=1))))
-    
 
 class Focus(nn.Module):
     # Focus wh information into c-space
@@ -195,7 +199,6 @@ class Concat(nn.Module):
             print(f.shape) """
         return torch.cat(x, self.d)
 
-from torch.nn import Upsample
 
 # YOLOP Definition
 # The lane line and the driving area segment branches without share information with each other and without link
@@ -248,7 +251,6 @@ YOLOP = [
 [ -1, Upsample, [None, 2, 'nearest']],  #41
 [ -1, Conv, [8, 2, 3, 1]] #42 Lane line segmentation head
 ]
-
 
 def check_anchor_order(m):
     # Check anchor order against stride order for YOLOv5 Detect() module m, and correct if necessary
@@ -345,14 +347,14 @@ class MCnet(nn.Module):
             b.data[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
             mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
-
 def get_net(cfg, **kwargs): 
     m_block_cfg = YOLOP
     model = MCnet(m_block_cfg, **kwargs)
     return model
 
 
-#loss part
+# Loss Function
+# FocalLoss + MultiHeadLoss
 class FocalLoss(nn.Module):
     # Wraps focal loss around existing loss_fcn(), i.e. criteria = FocalLoss(nn.BCEWithLogitsLoss(), gamma=1.5)
     def __init__(self, loss_fcn, gamma=1.5, alpha=0.25):
@@ -388,18 +390,6 @@ def is_parallel(model):
     return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
 
 def build_targets(cfg, predictions, targets, model):
-    '''
-    predictions
-    [16, 3, 32, 32, 85]
-    [16, 3, 16, 16, 85]
-    [16, 3, 8, 8, 85]
-    torch.tensor(predictions[i].shape)[[3, 2, 3, 2]]
-    [32,32,32,32]
-    [16,16,16,16]
-    [8,8,8,8]
-    targets[3,x,7]
-    t [index, class, x, y, w, h, head_index]
-    '''
     # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
     det = model.module.model[model.module.detector_index] if is_parallel(model) \
         else model.model[model.detector_index]  # Detect() module
@@ -459,8 +449,6 @@ def build_targets(cfg, predictions, targets, model):
 
     return tcls, tbox, indices, anch
 
-
-
 def smooth_BCE(eps=0.1):  # https://github.com/ultralytics/yolov3/issues/238#issuecomment-598028441
     # return positive, negative label smoothing BCE targets
     return 1.0 - 0.5 * eps, 0.5 * eps
@@ -510,16 +498,9 @@ def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=
         return iou  # IoU
 
 class MultiHeadLoss(nn.Module):
-    """
-    collect all the loss we need
-    """
+
     def __init__(self, losses, cfg, lambdas=None):
-        """
-        Inputs:
-        - losses: (list)[nn.Module, nn.Module, ...]
-        - cfg: config object
-        - lambdas: (list) + IoU loss, weight for each loss
-        """
+
         super().__init__()
         # lambdas: [cls, obj, iou, la_seg, ll_seg, ll_iou]
         if not lambdas:
@@ -531,34 +512,12 @@ class MultiHeadLoss(nn.Module):
         self.cfg = cfg
 
     def forward(self, head_fields, head_targets, shapes, model):
-        """
-        Inputs:
-        - head_fields: (list) output from each task head
-        - head_targets: (list) ground-truth for each task head
-        - model:
-
-        Returns:
-        - total_loss: sum of all the loss
-        - head_losses: (tuple) contain all loss[loss1, loss2, ...]
-
-        """
         total_loss, head_losses = self._forward_impl(head_fields, head_targets, shapes, model)
 
         return total_loss, head_losses
 
     def _forward_impl(self, predictions, targets, shapes, model):
-        """
-
-        Args:
-            predictions: predicts of [[det_head1, det_head2, det_head3], drive_area_seg_head, lane_line_seg_head]
-            targets: gts [det_targets, segment_targets, lane_targets]
-            model:
-
-        Returns:
-            total_loss: sum of all the loss
-            head_losses: list containing losses
-
-        """
+        
         cfg = self.cfg
         device = targets[0].device
         lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
@@ -663,11 +622,7 @@ class MultiHeadLoss(nn.Module):
         return loss, (lbox.item(), lobj.item(), lcls.item(), lseg_da.item(), lseg_ll.item(), liou_ll.item(), loss.item())
 
 class SegmentationMetric(object):
-    '''
-    imgLabel [batch_size, height(144), width(256)]
-    confusionMatrix [[0(TN),1(FP)],
-                     [2(FN),3(TP)]]
-    '''
+
     def __init__(self, numClass):
         self.numClass = numClass
         self.confusionMatrix = np.zeros((self.numClass,)*2)
@@ -736,22 +691,9 @@ class SegmentationMetric(object):
     def reset(self):
         self.confusionMatrix = np.zeros((self.numClass, self.numClass))
 
-
-
-
+# Get Loss Function
 def get_loss(cfg, device):
-    """
-    get MultiHeadLoss
 
-    Inputs:
-    -cfg: configuration use the loss_name part or 
-          function part(like regression classification)
-    -device: cpu or gpu device
-
-    Returns:
-    -loss: (MultiHeadLoss)
-
-    """
     # class loss criteria
     BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.Tensor([cfg.LOSS.CLS_POS_WEIGHT])).to(device)
     # object loss criteria
@@ -767,8 +709,7 @@ def get_loss(cfg, device):
     loss = MultiHeadLoss(loss_list, cfg=cfg, lambdas=cfg.LOSS.MULTI_HEAD_LAMBDA)
     return loss
 
-import torch.optim as optim
-
+# Get Optimizer
 def get_optimizer(cfg, model):
     optimizer = None
     if cfg.TRAIN.OPTIMIZER == 'sgd':
@@ -789,19 +730,11 @@ def get_optimizer(cfg, model):
 
     return optimizer
 
-
-
-from torch.utils.data import DataLoader
-from prefetch_generator import BackgroundGenerator
-
+# Dataloader
 class DataLoaderX(DataLoader):
     """prefetch dataloader"""
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
-
-from lib.core.evaluate import ConfusionMatrix,SegmentationMetric
-from lib.core.general import non_max_suppression,check_img_size,scale_coords,xyxy2xywh,xywh2xyxy,box_iou,coco80_to_coco91_class,plot_images,ap_per_class,output_to_target
-from lib.utils import plot_img_and_mask,plot_one_box,show_seg_result
 
 def time_synchronized():
     torch.cuda.synchronize() if torch.cuda.is_available() else None
@@ -826,27 +759,7 @@ class AverageMeter(object):
 
 def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_batch, num_warmup,
           writer_dict, logger, device, rank=-1):
-    """
-    train for one epoch
 
-    Inputs:
-    - config: configurations 
-    - train_loader: loder for data
-    - model: 
-    - criterion: (function) calculate all the loss, return total_loss, head_losses
-    - writer_dict:
-    outputs(2,)
-    output[0] len:3, [1,3,32,32,85], [1,3,16,16,85], [1,3,8,8,85]
-    output[1] len:1, [2,256,256]
-    output[2] len:1, [2,256,256]
-    target(2,)
-    target[0] [1,n,5]
-    target[1] [2,256,256]
-    target[2] [2,256,256]
-    Returns:
-    None
-
-    """
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -916,7 +829,6 @@ def train(cfg, train_loader, model, criterion, optimizer, scaler, epoch, num_bat
                 writer.add_scalar('train_loss', losses.val, global_steps)
                 # writer.add_scalar('train_acc', acc.val, global_steps)
                 writer_dict['train_global_steps'] = global_steps + 1
-
 
 def validate(epoch,config, val_loader, val_dataset, model, criterion, output_dir,
              tb_log_dir, writer_dict=None, logger=None, device='cpu', rank=-1):
@@ -1307,8 +1219,6 @@ def save_checkpoint(epoch, name, model, optimizer, output_dir, filename, is_best
             'epoch': epoch,
             'model': name,
             'state_dict': model_state,
-            # 'best_state_dict': model.module.state_dict(),
-            # 'perf': perf_indicator,
             'optimizer': optimizer.state_dict(),
         }
     torch.save(checkpoint, os.path.join(output_dir, filename))
@@ -1347,21 +1257,11 @@ def main():
     criterion = get_loss(cfg, device=device)
     optimizer = get_optimizer(cfg, model)
 
-    # load checkpoint model
-    best_perf = 0.0
-    best_model = False
-    last_epoch = -1
-
-    Encoder_para_idx = [str(i) for i in range(0, 17)]
-    Det_Head_para_idx = [str(i) for i in range(17, 25)]
-    Da_Seg_Head_para_idx = [str(i) for i in range(25, 34)]
-    Ll_Seg_Head_para_idx = [str(i) for i in range(34,43)]
 
     lf = lambda x: ((1 + math.cos(x * math.pi / cfg.TRAIN.END_EPOCH)) / 2) * \
                    (1 - cfg.TRAIN.LRF) + cfg.TRAIN.LRF  # cosine
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     begin_epoch = cfg.TRAIN.BEGIN_EPOCH
-
 
     # assign model params
     model.gr = 1.0
@@ -1435,7 +1335,7 @@ def main():
         lr_scheduler.step()
         # evaluate on validation set
         if (epoch % cfg.TRAIN.VAL_FREQ == 0 or epoch == cfg.TRAIN.END_EPOCH) and rank in [-1, 0]:
-            # print('validate')
+            print('validate')
             da_segment_results,ll_segment_results,detect_results, total_loss,maps, times = validate(
                 epoch,cfg, valid_loader, valid_dataset, model, criterion,
                 final_output_dir, tb_log_dir, writer_dict,
@@ -1454,11 +1354,6 @@ def main():
                           t_inf=times[0], t_nms=times[1])
             logger.info(msg)
 
-            # if perf_indicator >= best_perf:
-            #     best_perf = perf_indicator
-            #     best_model = True
-            # else:
-            #     best_model = False
 
         # save checkpoint model and best model
         savepath = os.path.join(final_output_dir, f'epoch-{epoch}.pth')
@@ -1494,8 +1389,6 @@ def main():
     model_state = model.module.state_dict() if is_parallel(model) else model.state_dict()
     torch.save(model_state, final_model_state_file)
     writer_dict['writer'].close()
-
-
 
 if __name__ == "__main__":
     print_3d_title()
