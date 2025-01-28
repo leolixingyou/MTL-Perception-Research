@@ -6,6 +6,7 @@ sudo docker run -it \
 --net=host \
 --gpus all \
 --privileged \
---name yolovp \
+--shm-size=8g \
+--name yolop \
 leolixingyou/yolo_secries:yolop_training
 

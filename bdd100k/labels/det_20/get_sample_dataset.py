@@ -1,8 +1,8 @@
 import os
 import cv2
 import shutil
-from pathlib import Path
 from tqdm import tqdm
+from pathlib import Path
 
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))+os.sep
 print(ROOT_PATH)
@@ -49,8 +49,8 @@ def organize_files(output_dir, source_dirs, dest_dirs):
 # 源目录和目标目录配置
 source_dirs = {
    'images': '/workspace/bdd100k/images',
-   'drivable': '/workspace/bdd100k/labels/drivable/masks',
-   'lane': '/workspace/bdd100k/labels/lane/masks'
+   'drivable': '/workspace/bdd100k/labels/drivable/colormaps',
+   'lane': '/workspace/bdd100k/labels/lane/colormaps'
 }
 
 dest_dirs = {

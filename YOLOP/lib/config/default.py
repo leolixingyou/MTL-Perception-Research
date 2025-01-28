@@ -12,7 +12,7 @@ _C.PRINT_FREQ = 20
 _C.AUTO_RESUME =False       # Resume from the last training interrupt
 _C.NEED_AUTOANCHOR = False      # Re-select the prior anchor(k-means)    When training from scratch (epoch=0), set it to be ture!
 _C.DEBUG = False
-_C.num_seg_class = 2
+_C.num_seg_class = 8
 
 # Cudnn related params
 _C.CUDNN = CN()
@@ -50,10 +50,10 @@ _C.LOSS.LL_IOU_GAIN = 0.2 # lane line iou loss gain
 
 # DATASET related params
 _C.DATASET = CN(new_allowed=True)
-_C.DATASET.DATAROOT = '/workspace/bdd100k/images/'       # the path of images folder
-_C.DATASET.LABELROOT = '/workspace/bdd100k/yolop_train/bdd_det'      # the path of det_annotations folder
-_C.DATASET.MASKROOT = '/workspace/bdd100k/yolop_train/bdd_lane_gt'                # the path of da_seg_annotations folder
-_C.DATASET.LANEROOT = '/workspace/bdd100k/yolop_train/bdd_seg_gt'               # the path of ll_seg_annotations folder
+_C.DATASET.DATAROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/images/'       # the path of images folder
+_C.DATASET.LABELROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/det'      # the path of det_annotations folder
+_C.DATASET.MASKROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/drivable'                # the path of da_seg_annotations folder
+_C.DATASET.LANEROOT = '/workspace/bdd100k/labels/det_20/sample_dataset/lane'               # the path of ll_seg_annotations folder
 _C.DATASET.DATASET = 'BddDataset'
 _C.DATASET.TRAIN_SET = 'train'
 _C.DATASET.TEST_SET = 'val'
@@ -67,7 +67,7 @@ _C.DATASET.SCALE_FACTOR = 0.25
 _C.DATASET.ROT_FACTOR = 10
 _C.DATASET.TRANSLATE = 0.1
 _C.DATASET.SHEAR = 0.0
-_C.DATASET.COLOR_RGB = False
+_C.DATASET.COLOR_RGB = True
 _C.DATASET.HSV_H = 0.015  # image HSV-Hue augmentation (fraction)
 _C.DATASET.HSV_S = 0.7  # image HSV-Saturation augmentation (fraction)
 _C.DATASET.HSV_V = 0.4  # image HSV-Value augmentation (fraction)
