@@ -10,7 +10,8 @@ _C.GPUS = (0,)
 _C.WORKERS = 1
 _C.PIN_MEMORY = False
 _C.PRINT_FREQ = 20
-_C.AUTO_RESUME =False       # Resume from the last training interrupt
+_C.AUTO_RESUME =True       # Resume from the last training interrupt
+# _C.AUTO_RESUME =False       # Resume from the last training interrupt
 _C.NEED_AUTOANCHOR = False      # Re-select the prior anchor(k-means)    When training from scratch (epoch=0), set it to be ture!
 _C.DEBUG = False
 _C.num_seg_class = 8
@@ -91,7 +92,7 @@ _C.TRAIN.GAMMA1 = 0.99
 _C.TRAIN.GAMMA2 = 0.0
 
 _C.TRAIN.BEGIN_EPOCH = 0
-_C.TRAIN.END_EPOCH = 1
+_C.TRAIN.END_EPOCH = 300
 
 _C.TRAIN.VAL_FREQ = 1
 _C.TRAIN.BATCH_SIZE_PER_GPU =1

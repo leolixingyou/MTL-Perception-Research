@@ -1263,6 +1263,19 @@ def main():
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     begin_epoch = cfg.TRAIN.BEGIN_EPOCH
 
+    checkpoint_file = os.path.join(args.prevModelDir)
+    if cfg.AUTO_RESUME and os.path.exists(checkpoint_file):
+        logger.info("=> loading checkpoint '{}'".format(checkpoint_file))
+        checkpoint = torch.load(checkpoint_file)
+        begin_epoch = checkpoint['epoch']
+        # best_perf = checkpoint['perf']
+        last_epoch = checkpoint['epoch']
+        model.load_state_dict(checkpoint['state_dict'])
+        # optimizer = get_optimizer(cfg, model)
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        logger.info("=> loaded checkpoint '{}' (epoch {})".format(
+            checkpoint_file, checkpoint['epoch']))
+        
     # assign model params
     model.gr = 1.0
     model.nc = 1
