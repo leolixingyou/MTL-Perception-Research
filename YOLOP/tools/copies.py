@@ -394,6 +394,14 @@ def is_parallel(model):
     return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
 
 def build_targets(cfg, predictions, targets, model):
+    if targets.shape[0] > 0:
+        # 检查并纠正类别
+        class_idx = targets[:, 1]
+        invalid_idx = class_idx >= model.nc
+        if invalid_idx.any():
+            # print(f"Warning: Correcting {invalid_idx.sum().item()} invalid class indices")
+            targets[:, 1] = torch.clamp(class_idx, 0, model.nc-1)
+
     # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
     det = model.module.model[model.module.detector_index] if is_parallel(model) \
         else model.model[model.detector_index]  # Detect() module
